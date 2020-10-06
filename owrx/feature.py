@@ -1,12 +1,11 @@
 import subprocess
 from functools import reduce
-from operator import and_
+from operator import and_, or_
 import re
 from distutils.version import LooseVersion
 import inspect
 from owrx.config import Config
 import shlex
-import os
 
 import logging
 
@@ -31,6 +30,7 @@ class FeatureDetector(object):
         "airspy": ["soapy_connector", "soapy_airspy"],
         "airspyhf": ["soapy_connector", "soapy_airspyhf"],
         "lime_sdr": ["soapy_connector", "soapy_lime_sdr"],
+        "xtrx_sdr": ["soapy_connector", "soapy_xtrx_sdr"],
         "fifi_sdr": ["alsa", "rockprog"],
         "pluto_sdr": ["soapy_connector", "soapy_pluto_sdr"],
         "soapy_remote": ["soapy_connector", "soapy_remote"],
@@ -103,19 +103,12 @@ class FeatureDetector(object):
     def get_requirement_description(self, requirement):
         return inspect.getdoc(self._get_requirement_method(requirement))
 
-    def command_is_runnable(self, command, expected_result=None):
+    def command_is_runnable(self, command):
         tmp_dir = Config.get()["temporary_directory"]
         cmd = shlex.split(command)
-        env = os.environ.copy()
-        # prevent X11 programs from opening windows if called from a GUI shell
-        env.pop("DISPLAY", None)
         try:
-            process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=tmp_dir, env=env)
-            rc = process.wait()
-            if expected_result is None:
-                return rc != 32512
-            else:
-                return rc == expected_result
+            process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=tmp_dir)
+            return process.wait() != 32512
         except FileNotFoundError:
             return False
 
@@ -315,6 +308,14 @@ class FeatureDetector(object):
         You can get it [here](https://github.com/myriadrf/LimeSuite).
         """
         return self._has_soapy_driver("lime")
+    
+    def has_soapy_xtrx_sdr(self):
+        """
+        The Lime Suite installs - amongst others - a Soapy driver for the LimeSDR device series.
+
+        You can get it [here](https://github.com/myriadrf/LimeSuite).
+        """
+        return self._has_soapy_driver("xtrx")
 
     def has_soapy_pluto_sdr(self):
         """
@@ -450,9 +451,6 @@ class FeatureDetector(object):
         In order to be able to decode DRM broadcasts, OpenWebRX needs the "dream" DRM decoder. You can get it
         [here](https://sourceforge.net/projects/drm/files/dream/).
 
-        Note: Please use version 2.1.1, the latest version (2.2 at the time of writing) has been reported to cause
-        problems.
-
         The version supplied by most distributions will not work properly on the command line, so compiling from source
         with a custom set of commands is recommended:
 
@@ -462,4 +460,4 @@ class FeatureDetector(object):
         sudo make install
         ```
         """
-        return self.command_is_runnable("dream --help", 0)
+        return self.command_is_runnable("dream --help")
